@@ -1,8 +1,5 @@
 package com.example.cwe312.playcookie;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
@@ -13,38 +10,27 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 public class Secure {
 
-    private final ObjectMapper mapper = new ObjectMapper();
-
-    // Serializes session data into a cookie named PLAY_SESSION
+    // Issues an opaque random session id instead of serializing the credentials into the cookie
     @PostMapping(path = "/authenticate", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> authenticate(@RequestBody Map<String, Object> body) throws JsonProcessingException {
+    public ResponseEntity<?> authenticate(@RequestBody Map<String, Object> body) {
         String username = String.valueOf(body.getOrDefault("username", "")).trim();
         String password = String.valueOf(body.getOrDefault("password", "")).trim();
         if (username.isEmpty() || password.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("ok", false, "error", "Missing credentials"));
         }
 
-        Map<String, Object> session = new HashMap<>();
-        session.put("username", username);
-        session.put("password", password);
-        session.put("role", "user");
-
-        String json = mapper.writeValueAsString(session);
-        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
-
-        ResponseCookie cookie = ResponseCookie.from("PLAY_SESSION", encoded)
+        ResponseCookie cookie = ResponseCookie.from("PLAY_SESSION", UUID.randomUUID().toString())
                 .path("/")
-                .httpOnly(false)
-                .secure(false)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
                 .maxAge(3600)
                 .build();
 
@@ -54,14 +40,7 @@ public class Secure {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(HttpServletRequest request) {
-        String cookieHeader = request.getHeader("Cookie");
-        return ResponseEntity.ok(Map.of(
-                "ok", true,
-                "cookie", cookieHeader == null ? "" : cookieHeader
-        ));
+    public ResponseEntity<?> me() {
+        return ResponseEntity.ok(Map.of("ok", true));
     }
 }
-
-
-// Non-security edit: this trailing comment changes no data flow.
